@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Relocation Comparison — SG / JP / AU</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117; color: #e8eaf0;
+      min-height: 100vh; padding: 40px 16px 60px;
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    input[type="number"] { -moz-appearance: textfield; }
+    button { cursor: pointer; border: none; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+const SGD_JPY=125, SGD_AUD=1.10, CPF_CAP=102000;
+const MULT = { sg:1, jp:0.75, au:0.95 };
+const COL  = {
+  sg: { rental:36000, food:8000,  transport:1200 },
+  jp: { rental:18000, food:5500,  transport:1200 },
+  au: { rental:33000, food:18000, transport:2700  },
+};
+const COL_ITEMS = ['rental','food','transport'];
+const COUNTRIES = [
+  { key:'sg', flag:'🇸🇬', name:'Singapore', color:'#e84a5f', mult:'—',     baseline:true  },
+  { key:'jp', flag:'🇯🇵', name:'Japan',     color:'#f97b22', mult:'0.75×', baseline:false },
+  { key:'au', flag:'🇦🇺', name:'Australia', color:'#00b4d8', mult:'0.95×', baseline:false },
+];
+
+const s = {
+  card:    { background:'#1a1d27', border:'1px solid #2e3248', borderRadius:12, padding:'20px' },
+  muted:   { color:'#6b7280' },
+  label:   { fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.6px', color:'#6b7280', marginBottom:10, display:'block' },
+  row:     { display:'flex', justifyContent:'space-between', alignItems:'baseline', fontSize:12 },
+  divider: { borderTop:'1px solid #2e3248', margin:'6px 0' },
+  grid3:   { display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 },
+  input:   { display:'flex', borderRadius:8, overflow:'hidden', border:'1px solid #2e3248' },
+  inputTag:{ padding:'0 14px', background:'#2e3248', color:'#6b7280', fontWeight:600, fontSize:13, display:'flex', alignItems:'center' },
+  inputEl: { flex:1, background:'#22263a', border:'none', outline:'none', color:'#e8eaf0', fontWeight:700, fontSize:16, padding:'10px 14px', width:'100%' },
+};
+
+function sgTax(i) {
+  const B=[[20000,0],[10000,.02],[10000,.035],[40000,.07],[40000,.115],[40000,.15],[40000,.18],[40000,.19],[40000,.195],[40000,.20],[Infinity,.22]];
+  let t=0,r=i; for(const[b,rate]of B){if(r<=0)break;const x=Math.min(r,b);t+=x*rate;r-=x;} return t;
+}
+function jpTax(jpy) {
+  const B=[[1950000,.05,0],[3300000,.10,97500],[6950000,.20,427500],[9000000,.23,636000],[18000000,.33,1536000],[40000000,.40,2796000],[Infinity,.45,4796000]];
+  for(const[th,rate,d]of B){if(jpy<=th)return(jpy*rate-d)*1.021;} return(jpy*.45-4796000)*1.021;
+}
+function auTax(aud) {
+  const B=[[18200,0],[45000,.19],[135000,.325],[190000,.37],[Infinity,.45]];
+  let t=0,prev=0; for(const[th,rate]of B){if(aud<=prev)break;const band=Math.min(aud,th===Infinity?aud:th)-prev;t+=band*rate;prev=th===Infinity?aud:th;if(prev>=aud)break;} return t;
+}
+
+const $ = n => 'S$' + Math.round(n).toLocaleString();
+const pct = n => (n*100).toFixed(1) + '%';
+
+function CheckItem({ label, checked, onChange }) {
+  return (
+    <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:13, color:'#e8eaf0' }}>
+      <input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked)}
+        style={{ width:14, height:14, accentColor:'#e84a5f', cursor:'pointer' }}/>
+      {label}
+    </label>
+  );
+}
+
+function Stepper({ value, onChange }) {
+  const btn = (delta) => ({
+    padding:'6px 14px', background:'#2e3248', color:'#e8eaf0', fontWeight:700,
+    fontSize:16, lineHeight:1, userSelect:'none',
+    onClick: () => onChange(Math.max(0, Math.min(30, value + delta))),
+  });
+  return (
+    <div style={{ display:'flex', border:'1px solid #2e3248', borderRadius:8, overflow:'hidden' }}>
+      <button {...btn(-1)}>−</button>
+      <input type="number" value={value} min={0} max={30}
+        onChange={e=>onChange(Math.max(0,Math.min(30,parseInt(e.target.value)||0)))}
+        style={{ width:48, background:'#22263a', border:'none', outline:'none', color:'#e8eaf0',
+          fontWeight:700, fontSize:14, textAlign:'center', padding:'6px 0' }}/>
+      <button {...btn(+1)}>+</button>
+    </div>
+  );
+}
+
+export default function App() {
+  const [income,  setIncome]  = useState(100000);
+  const [resTax,  setResTax]  = useState(true);
+  const [cpf,     setCpf]     = useState(false);
+  const [colOn,   setColOn]   = useState({
+    sg:{ rental:true, food:true, transport:true },
+    jp:{ rental:true, food:true, transport:true },
+    au:{ rental:true, food:true, transport:true },
+  });
+  const [years, setYears] = useState({ sg:2, jp:3, au:0 });
+
+  const toggle  = (k,item,v) => setColOn(p=>({...p,[k]:{...p[k],[item]:v}}));
+  const setYr   = (k,v) => setYears(p=>({...p,[k]:Math.max(0,Math.min(30,v))}));
+
+  const data = useMemo(() => {
+    const i = income || 0;
+    const colCost = k => COL_ITEMS.reduce((s,item)=>s+(colOn[k][item]?COL[k][item]:0),0);
+
+    const sg = (()=>{ const g=i, t=sgTax(g)+(cpf?Math.min(g,CPF_CAP)*.20:0), n=g-t, c=colCost('sg'); return{gross:g,tax:t,net:n,colTotal:c,disp:n-c,eff:g>0?t/g:0}; })();
+    const jp = (()=>{ const g=i*MULT.jp, jpy=g*SGD_JPY, nat=jpTax(jpy), res=resTax?jpy*.10:0, t=(nat+res)/SGD_JPY, n=g-t, c=colCost('jp'); return{gross:g,tax:t,net:n,colTotal:c,disp:n-c,eff:g>0?t/g:0}; })();
+    const au = (()=>{ const g=i*MULT.au, aud=g*SGD_AUD, t=auTax(aud)/SGD_AUD, n=g-t, c=colCost('au'); return{gross:g,tax:t,net:n,colTotal:c,disp:n-c,eff:g>0?t/g:0}; })();
+    return { sg, jp, au };
+  }, [income, resTax, cpf, colOn]);
+
+  const BASE    = { net: data.sg.net, disp: data.sg.disp };
+  const maxDisp = Math.max(...COUNTRIES.map(c=>data[c.key].disp), 1);
+  const totals  = COUNTRIES.map(c=>({ ...c, disp:data[c.key].disp, total:data[c.key].disp*years[c.key], years:years[c.key] }));
+  const grandTotal = totals.reduce((s,c)=>s+c.total, 0);
+  const maxTotal   = Math.max(...totals.map(c=>c.total), 1);
+
+  return (
+    <div style={{ width:'100%', maxWidth:780, display:'flex', flexDirection:'column', gap:16 }}>
+
+      {/* Header */}
+      <div style={{ textAlign:'center', marginBottom:4 }}>
+        <div style={{ fontSize:28, marginBottom:4 }}>🇸🇬 🇯🇵 🇦🇺</div>
+        <h1 style={{ fontSize:22, fontWeight:700 }}>Relocation Comparison</h1>
+        <p style={{ ...s.muted, fontSize:12, marginTop:4 }}>Enter your Singapore salary — adjusted gross, taxes &amp; cost of living per country</p>
+      </div>
+
+      {/* Salary & Tax */}
+      <div style={{ ...s.card, display:'flex', flexWrap:'wrap', gap:24 }}>
+        <div style={{ flex:1, minWidth:200, display:'flex', flexDirection:'column', gap:10 }}>
+          <span style={s.label}>Salary &amp; Tax</span>
+          <div style={s.input}>
+            <span style={s.inputTag}>SGD</span>
+            <input type="number" value={income} min={0} step={1000} style={s.inputEl}
+              onChange={e=>setIncome(parseFloat(e.target.value)||0)}/>
+          </div>
+          <p style={{ ...s.muted, fontSize:11 }}>JP = 0.75× · AU = 0.95× · 1 SGD = 125 JPY = 1.10 AUD</p>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:8, justifyContent:'center' }}>
+          <CheckItem label="JP resident tax (10%)"        checked={resTax} onChange={setResTax}/>
+          <CheckItem label="SG employee CPF (20%, cap S$102k)" checked={cpf}    onChange={setCpf}/>
+        </div>
+      </div>
+
+      {/* Cost of Living table */}
+      <div style={s.card}>
+        <span style={s.label}>Cost of Living</span>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+          <thead>
+            <tr style={{ borderBottom:'1px solid #2e3248' }}>
+              <th style={{ textAlign:'left', paddingBottom:8, color:'#6b7280', fontWeight:600, width:100 }}>Category</th>
+              {COUNTRIES.map(c=>(
+                <th key={c.key} style={{ textAlign:'center', paddingBottom:8, fontWeight:700, color:c.color }}>{c.flag} {c.name}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {COL_ITEMS.map(item=>(
+              <tr key={item} style={{ borderBottom:'1px solid #1e2130' }}>
+                <td style={{ padding:'10px 0', fontWeight:500, textTransform:'capitalize', color:'#e8eaf0' }}>{item}</td>
+                {COUNTRIES.map(c=>{
+                  const on = colOn[c.key][item];
+                  return (
+                    <td key={c.key} style={{ textAlign:'center', padding:'10px 0', opacity:on?1:0.35, transition:'opacity 0.15s' }}>
+                      <label style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, cursor:'pointer' }}>
+                        <input type="checkbox" checked={on} onChange={e=>toggle(c.key,item,e.target.checked)}
+                          style={{ width:13, height:13, accentColor:c.color, cursor:'pointer' }}/>
+                        <span style={{ fontWeight:600, fontVariantNumeric:'tabular-nums' }}>{$(COL[c.key][item])}</span>
+                      </label>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            <tr>
+              <td style={{ paddingTop:10, fontWeight:700, color:'#6b7280' }}>Total</td>
+              {COUNTRIES.map(c=>(
+                <td key={c.key} style={{ textAlign:'center', paddingTop:10, fontWeight:700, fontVariantNumeric:'tabular-nums' }}>
+                  {$(data[c.key].colTotal)}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Country cards */}
+      <div style={s.grid3}>
+        {COUNTRIES.map(c=>{
+          const d   = data[c.key];
+          const nr  = BASE.net>0  ? d.net/BASE.net   : 1;
+          const dr  = BASE.disp!==0 ? d.disp/BASE.disp : 1;
+          const nd  = ((nr-1)*100).toFixed(1);
+          const dd  = ((dr-1)*100).toFixed(1);
+          const hasCol   = d.colTotal > 0;
+          const dispBg   = c.baseline ? 'rgba(255,255,255,0.05)' : dr>=1 ? 'rgba(16,185,129,0.1)' : 'rgba(244,63,94,0.12)';
+          const dispColor= c.baseline ? '#e8eaf0' : dr>=1 ? '#10b981' : '#f43f5e';
+
+          return (
+            <div key={c.key} style={{ ...s.card, display:'flex', flexDirection:'column', gap:10,
+              borderColor: c.baseline ? c.color : '#2e3248' }}>
+
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontWeight:700, fontSize:14, display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ fontSize:18 }}>{c.flag}</span>{c.name}
+                </div>
+                {c.baseline
+                  ? <span style={{ fontSize:10, fontWeight:700, background:c.color, color:'#fff', padding:'2px 8px', borderRadius:20 }}>Base</span>
+                  : <span style={{ fontSize:10, fontWeight:600, background:'#22263a', color:'#6b7280', padding:'2px 8px', borderRadius:20 }}>{c.mult} SG</span>
+                }
+              </div>
+
+              <div style={{ display:'flex', flexDirection:'column', gap:5, paddingBottom:8, borderBottom:'1px solid #2e3248' }}>
+                {[['Adjusted gross',$(d.gross)],['Total tax',$(d.tax)],['Effective rate',pct(d.eff)]].map(([l,v])=>(
+                  <div key={l} style={s.row}>
+                    <span style={s.muted}>{l}</span>
+                    <span style={{ fontWeight:600, color:l==='Effective rate'?'#6b7280':'#e8eaf0' }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={s.row}>
+                <span style={{ ...s.muted, fontWeight:600 }}>Take-home</span>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontWeight:700, fontSize:14 }}>{$(d.net)}</div>
+                  <div style={{ fontSize:11, fontWeight:600, color: c.baseline?'#6b7280':nr>=1?'#10b981':'#f43f5e' }}>
+                    {c.baseline ? 'Baseline' : `${nd>0?'+':''}${nd}% vs SG`}
+                  </div>
+                </div>
+              </div>
+
+              {hasCol && (
+                <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:8, padding:'10px 12px', display:'flex', flexDirection:'column', gap:5 }}>
+                  <span style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px', color:'#6b7280' }}>Cost of Living</span>
+                  {COL_ITEMS.filter(item=>colOn[c.key][item]).map(item=>(
+                    <div key={item} style={s.row}>
+                      <span style={{ ...s.muted, textTransform:'capitalize' }}>{item}</span>
+                      <span style={{ fontWeight:600 }}>{$(COL[c.key][item])}</span>
+                    </div>
+                  ))}
+                  <div style={s.divider}/>
+                  <div style={s.row}>
+                    <span style={{ ...s.muted, fontWeight:700 }}>Total CoL</span>
+                    <span style={{ fontWeight:700 }}>{$(d.colTotal)}</span>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ borderRadius:8, padding:'10px 12px', textAlign:'center', background:dispBg }}>
+                <div style={{ fontSize:11, color:'#6b7280', marginBottom:3 }}>{hasCol?'Disposable / yr':'Take-home / yr'}</div>
+                <div style={{ fontWeight:700, fontSize:15, color:dispColor }}>{$(d.disp)}</div>
+                <div style={{ fontSize:11, fontWeight:600, marginTop:3, color:c.baseline?'#6b7280':dr>=1?'#10b981':'#f43f5e' }}>
+                  {c.baseline ? '100% baseline' : `${dd>0?'+':''}${dd}% vs SG`}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Multi-year Projection */}
+      <div style={s.card}>
+        <span style={s.label}>Multi-year Projection</span>
+        <p style={{ ...s.muted, fontSize:12, marginBottom:20 }}>Set how many years you plan to spend in each country to see total accumulated savings.</p>
+
+        {/* Steppers */}
+        <div style={s.grid3}>
+          {COUNTRIES.map(c=>(
+            <div key={c.key} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:12, fontWeight:600, color:c.color }}>{c.flag} {c.name}</span>
+              <Stepper value={years[c.key]} onChange={v=>setYr(c.key,v)}/>
+              <span style={{ fontSize:11, color:'#6b7280' }}>{years[c.key]} yr{years[c.key]!==1?'s':''}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Per-country totals */}
+        <div style={{ ...s.grid3, marginTop:20 }}>
+          {totals.map(c=>(
+            <div key={c.key} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid #2e3248', borderRadius:10,
+              padding:'12px', textAlign:'center', display:'flex', flexDirection:'column', gap:4 }}>
+              <div style={{ fontSize:11, color:'#6b7280' }}>{c.years} yr{c.years!==1?'s':''} × {$(c.disp)}/yr</div>
+              <div style={{ fontWeight:700, fontSize:16, color:c.color }}>{$(c.total)}</div>
+              <div style={{ fontSize:11, color:'#6b7280' }}>total saved</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Bar chart */}
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginTop:20 }}>
+          {totals.map(c=>{
+            const w = Math.max(c.total/maxTotal*100,0).toFixed(1);
+            return (
+              <div key={c.key} style={{ display:'flex', alignItems:'center', gap:12 }}>
+                <span style={{ width:90, fontSize:12, fontWeight:600, textAlign:'right' }}>{c.flag} {c.years}yr</span>
+                <div style={{ flex:1, background:'#2e3248', borderRadius:4, height:24, overflow:'hidden' }}>
+                  <div style={{ width:`${w}%`, height:'100%', background:c.color, borderRadius:4,
+                    display:'flex', alignItems:'center', paddingLeft:8,
+                    fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.9)',
+                    transition:'width 0.5s cubic-bezier(0.25,0.8,0.25,1)' }}>
+                    {c.total/maxTotal>0.2?$(c.total):''}
+                  </div>
+                </div>
+                <span style={{ width:80, fontSize:12, fontWeight:600, textAlign:'right',
+                  color:c.total<0?'#f43f5e':'#e8eaf0' }}>{$(c.total)}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Grand total */}
+        <div style={{ borderTop:'1px solid #2e3248', marginTop:16, paddingTop:16,
+          display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:14 }}>Grand Total</div>
+            <div style={{ fontSize:11, color:'#6b7280', marginTop:3 }}>
+              {totals.filter(c=>c.years>0).map(c=>`${c.years}yr ${c.name}`).join(' + ') || '0 years selected'}
+            </div>
+          </div>
+          <div style={{ textAlign:'right' }}>
+            <div style={{ fontWeight:700, fontSize:22, color:grandTotal<0?'#f43f5e':'#10b981' }}>{$(grandTotal)}</div>
+            <div style={{ fontSize:11, color:'#6b7280', marginTop:2 }}>total accumulated</div>
+          </div>
+        </div>
+      </div>
+
+      <p style={{ color:'#6b7280', fontSize:11, textAlign:'center', marginTop:4 }}>
+        For reference only. Tax figures based on published 2024/25 rates; does not constitute financial advice.
+      </p>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
