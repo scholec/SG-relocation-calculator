@@ -53,7 +53,7 @@ const s = {
 };
 
 function sgTax(i) {
-  const B=[[20000,0],[10000,.02],[10000,.035],[40000,.07],[40000,.115],[40000,.15],[40000,.18],[40000,.19],[40000,.195],[40000,.20],[Infinity,.22]];
+  const B=[[20000,0],[10000,.02],[10000,.035],[40000,.07],[40000,.115],[40000,.15],[40000,.18],[40000,.19],[40000,.195],[40000,.20],[180000,.22],[500000,.23],[Infinity,.24]];
   let t=0,r=i; for(const[b,rate]of B){if(r<=0)break;const x=Math.min(r,b);t+=x*rate;r-=x;} return t;
 }
 function jpTax(jpy) {
@@ -105,7 +105,7 @@ function App() {
     jp:{ rental:true, food:true, transport:true },
     au:{ rental:true, food:true, transport:true },
   });
-  const [years, setYears] = useState({ sg:2, jp:3, au:0 });
+  const [years, setYears] = useState({ sg:2, jp:3, au:5 });
 
   const toggle  = (k,item,v) => setColOn(p=>({...p,[k]:{...p[k],[item]:v}}));
   const setYr   = (k,v) => setYears(p=>({...p,[k]:Math.max(0,Math.min(30,v))}));
