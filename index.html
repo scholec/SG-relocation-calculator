@@ -147,7 +147,7 @@ function App() {
       const n=g-t, c=colCost('jp');
       return{gross:g,tax:incomeTax,si:siSGD,net:n,colTotal:c,disp:n-c,eff:g>0?incomeTax/g:0};
     })();
-    const au = (()=>{ const g=i*MULT.au, aud=g*SGD_AUD, t=auTax(aud)/SGD_AUD, n=g-t, c=colCost('au'); return{gross:g,tax:t,si:0,net:n,colTotal:c,disp:n-c,eff:g>0?t/g:0}; })();
+    const au = (()=>{ const g=i*MULT.au, aud=g*SGD_AUD, t=(auTax(aud)+aud*0.02)/SGD_AUD, n=g-t, c=colCost('au'); return{gross:g,tax:t,si:0,net:n,colTotal:c,disp:n-c,eff:g>0?t/g:0}; })(); // +2% Medicare Levy
     return { sg, jp, au };
   }, [income, cpf, colOn]);
 
