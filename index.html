@@ -122,11 +122,11 @@ function App() {
 
   const [cpf,     setCpf]     = useState(true);
   const [colOn,   setColOn]   = useState({
-    sg:{ rental:true, food:true, transport:true },
+    sg:{ rental:false, food:true, transport:true },
     jp:{ rental:true, food:true, transport:true },
     au:{ rental:true, food:true, transport:true },
   });
-  const [years, setYears] = useState({ sg:2, jp:3, au:5 });
+  const [years, setYears] = useState({ sg:2, jp:5, au:7 });
 
   const toggle  = (k,item,v) => setColOn(p=>({...p,[k]:{...p[k],[item]:v}}));
   const setYr   = (k,v) => setYears(p=>({...p,[k]:Math.max(0,Math.min(30,v))}));
