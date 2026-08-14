@@ -29,7 +29,7 @@ const { useState, useMemo } = React;
 const SGD_JPY=125, SGD_AUD=1.10, CPF_CAP=102000;
 const MULT = { sg:1, jp:0.70, au:0.95 };
 const COL  = {
-  sg: { rental:36000, food:8000,  transport:1200 },
+  sg: { rental:50000, food:8000,  transport:1200 },
   jp: { rental:18000, food:5500,  transport:1200 },
   au: { rental:33000, food:18000, transport:2700  },
 };
@@ -145,7 +145,7 @@ function App() {
             <input type="number" value={income} min={0} step={1000} style={s.inputEl}
               onChange={e=>setIncome(parseFloat(e.target.value)||0)}/>
           </div>
-          <p style={{ ...s.muted, fontSize:11 }}>JP = 0.75× · AU = 0.95× · 1 SGD = 125 JPY = 1.10 AUD</p>
+          <p style={{ ...s.muted, fontSize:11 }}>JP = 0.70× · AU = 0.95× · 1 SGD = 125 JPY = 1.10 AUD</p>
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:8, justifyContent:'center' }}>
           <CheckItem label="JP resident tax (10%)"        checked={resTax} onChange={setResTax}/>
