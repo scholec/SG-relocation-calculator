@@ -119,7 +119,7 @@ function Stepper({ value, onChange }) {
 
 function App() {
   const [income,  setIncome]  = useState(100000);
-  const [resTax,  setResTax]  = useState(true);
+
   const [cpf,     setCpf]     = useState(false);
   const [colOn,   setColOn]   = useState({
     sg:{ rental:true, food:true, transport:true },
@@ -140,7 +140,7 @@ function App() {
       const g=i*MULT.jp, jpy=g*SGD_JPY;
       const si=jpSocialInsurance(jpy);
       const nat=jpTax(jpy,si);
-      const res=resTax?jpTaxableIncome(jpy,si)*.10:0;  // resident tax on taxable income
+      const res=jpTaxableIncome(jpy,si)*.10;  // resident tax — mandatory from day 1 on employment visa
       const incomeTax=(nat+res)/SGD_JPY;
       const siSGD=si/SGD_JPY;
       const t=incomeTax+siSGD;
@@ -149,7 +149,7 @@ function App() {
     })();
     const au = (()=>{ const g=i*MULT.au, aud=g*SGD_AUD, t=auTax(aud)/SGD_AUD, n=g-t, c=colCost('au'); return{gross:g,tax:t,si:0,net:n,colTotal:c,disp:n-c,eff:g>0?t/g:0}; })();
     return { sg, jp, au };
-  }, [income, resTax, cpf, colOn]);
+  }, [income, cpf, colOn]);
 
   const BASE    = { net: data.sg.net, disp: data.sg.disp };
   const maxDisp = Math.max(...COUNTRIES.map(c=>data[c.key].disp), 1);
@@ -165,6 +165,7 @@ function App() {
         <div style={{ fontSize:28, marginBottom:4 }}>🇸🇬 🇯🇵 🇦🇺</div>
         <h1 style={{ fontSize:22, fontWeight:700 }}>Relocation Comparison</h1>
         <p style={{ ...s.muted, fontSize:12, marginTop:4 }}>Enter your Singapore salary — adjusted gross, taxes &amp; cost of living per country</p>
+        <p style={{ fontSize:11, marginTop:6, color:'#6b7280', fontStyle:'italic' }}>Base salary only — RSU and bonus tax treatment varies by country and is excluded.</p>
       </div>
 
       {/* Salary & Tax */}
@@ -179,8 +180,7 @@ function App() {
           <p style={{ ...s.muted, fontSize:11 }}>JP = 0.70× · AU = 0.95× · 1 SGD = 125 JPY = 1.10 AUD</p>
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:8, justifyContent:'center' }}>
-          <CheckItem label="JP resident tax (10%)"        checked={resTax} onChange={setResTax}/>
-          <CheckItem label="SG employee CPF (20%, cap S$102k)" checked={cpf}    onChange={setCpf}/>
+          <CheckItem label="SG employee CPF (20%, cap S$102k)" checked={cpf} onChange={setCpf}/>
         </div>
       </div>
 
