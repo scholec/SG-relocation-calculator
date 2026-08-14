@@ -56,9 +56,30 @@ function sgTax(i) {
   const B=[[20000,0],[10000,.02],[10000,.035],[40000,.07],[40000,.115],[40000,.15],[40000,.18],[40000,.19],[40000,.195],[40000,.20],[180000,.22],[500000,.23],[Infinity,.24]];
   let t=0,r=i; for(const[b,rate]of B){if(r<=0)break;const x=Math.min(r,b);t+=x*rate;r-=x;} return t;
 }
-function jpTax(jpy) {
+function jpEmploymentIncome(jpy) {
+  // Statutory employment income deduction (2025 NTA rates)
+  if (jpy<=650999) return 0;
+  if (jpy<=1899999) return jpy-650000;
+  if (jpy<=3599999) { const B=Math.floor(Math.floor(jpy/4)/1000)*1000; return B*2.8-80000; }
+  if (jpy<=6599999) { const B=Math.floor(Math.floor(jpy/4)/1000)*1000; return B*3.2-440000; }
+  if (jpy<=8499999) return jpy*0.9-1100000;
+  return jpy-1950000;
+}
+function jpSocialInsurance(jpy) {
+  // Employee contributions: health 5.0%, pension 9.15% (capped ¥7.8M/yr), employment 0.6%
+  const health  = jpy * 0.050;
+  const pension = Math.min(jpy, 7800000) * 0.0915;
+  const employ  = jpy * 0.006;
+  return health + pension + employ;
+}
+function jpTaxableIncome(jpy, si) {
+  // Taxable = employment income - social insurance - basic deduction (¥580,000)
+  return Math.max(0, jpEmploymentIncome(jpy) - si - 580000);
+}
+function jpTax(jpy, si) {
+  const taxable = jpTaxableIncome(jpy, si);
   const B=[[1950000,.05,0],[3300000,.10,97500],[6950000,.20,427500],[9000000,.23,636000],[18000000,.33,1536000],[40000000,.40,2796000],[Infinity,.45,4796000]];
-  for(const[th,rate,d]of B){if(jpy<=th)return(jpy*rate-d)*1.021;} return(jpy*.45-4796000)*1.021;
+  for(const[th,rate,d]of B){if(taxable<=th)return Math.max(0,taxable*rate-d)*1.021;} return Math.max(0,taxable*.45-4796000)*1.021;
 }
 function auTax(aud) {
   const B=[[18200,0],[45000,.19],[135000,.325],[190000,.37],[Infinity,.45]];
@@ -114,9 +135,19 @@ function App() {
     const i = income || 0;
     const colCost = k => COL_ITEMS.reduce((s,item)=>s+(colOn[k][item]?COL[k][item]:0),0);
 
-    const sg = (()=>{ const g=i, t=sgTax(g)+(cpf?Math.min(g,CPF_CAP)*.20:0), n=g-t, c=colCost('sg'); return{gross:g,tax:t,net:n,colTotal:c,disp:n-c,eff:g>0?t/g:0}; })();
-    const jp = (()=>{ const g=i*MULT.jp, jpy=g*SGD_JPY, nat=jpTax(jpy), res=resTax?jpy*.10:0, t=(nat+res)/SGD_JPY, n=g-t, c=colCost('jp'); return{gross:g,tax:t,net:n,colTotal:c,disp:n-c,eff:g>0?t/g:0}; })();
-    const au = (()=>{ const g=i*MULT.au, aud=g*SGD_AUD, t=auTax(aud)/SGD_AUD, n=g-t, c=colCost('au'); return{gross:g,tax:t,net:n,colTotal:c,disp:n-c,eff:g>0?t/g:0}; })();
+    const sg = (()=>{ const g=i, t=sgTax(g)+(cpf?Math.min(g,CPF_CAP)*.20:0), n=g-t, c=colCost('sg'); return{gross:g,tax:t,si:0,net:n,colTotal:c,disp:n-c,eff:g>0?t/g:0}; })();
+    const jp = (()=>{
+      const g=i*MULT.jp, jpy=g*SGD_JPY;
+      const si=jpSocialInsurance(jpy);
+      const nat=jpTax(jpy,si);
+      const res=resTax?jpTaxableIncome(jpy,si)*.10:0;  // resident tax on taxable income
+      const incomeTax=(nat+res)/SGD_JPY;
+      const siSGD=si/SGD_JPY;
+      const t=incomeTax+siSGD;
+      const n=g-t, c=colCost('jp');
+      return{gross:g,tax:incomeTax,si:siSGD,net:n,colTotal:c,disp:n-c,eff:g>0?incomeTax/g:0};
+    })();
+    const au = (()=>{ const g=i*MULT.au, aud=g*SGD_AUD, t=auTax(aud)/SGD_AUD, n=g-t, c=colCost('au'); return{gross:g,tax:t,si:0,net:n,colTotal:c,disp:n-c,eff:g>0?t/g:0}; })();
     return { sg, jp, au };
   }, [income, resTax, cpf, colOn]);
 
@@ -222,10 +253,16 @@ function App() {
               </div>
 
               <div style={{ display:'flex', flexDirection:'column', gap:5, paddingBottom:8, borderBottom:'1px solid #2e3248' }}>
-                {[['Adjusted gross',$(d.gross)],['Total tax',$(d.tax)],['Effective rate',pct(d.eff)]].map(([l,v])=>(
+                {[
+                  ['Adjusted gross', $(d.gross)],
+                  ...(d.si > 0 ? [['Social insurance', $(d.si)]] : []),
+                  ['Income tax', $(d.tax)],
+                  ['Effective rate', pct(d.eff)],
+                  ...(d.si > 0 ? [['Total deducted', $(d.tax + d.si)]] : []),
+                ].map(([l,v])=>(
                   <div key={l} style={s.row}>
                     <span style={s.muted}>{l}</span>
-                    <span style={{ fontWeight:600, color:l==='Effective rate'?'#6b7280':'#e8eaf0' }}>{v}</span>
+                    <span style={{ fontWeight:600, color:(l==='Effective rate'||l==='Total deducted')?'#6b7280':'#e8eaf0' }}>{v}</span>
                   </div>
                 ))}
               </div>
