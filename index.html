@@ -73,8 +73,8 @@ function jpSocialInsurance(jpy) {
   return health + pension + employ;
 }
 function jpTaxableIncome(jpy, si) {
-  // Taxable = employment income - social insurance - basic deduction (¥580,000)
-  return Math.max(0, jpEmploymentIncome(jpy) - si - 580000);
+  // Taxable = employment income - social insurance - basic deduction (¥480,000, NTA 2025)
+  return Math.max(0, jpEmploymentIncome(jpy) - si - 480000);
 }
 function jpTax(jpy, si) {
   const taxable = jpTaxableIncome(jpy, si);
