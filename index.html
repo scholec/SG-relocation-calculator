@@ -82,7 +82,7 @@ function jpTax(jpy, si) {
   for(const[th,rate,d]of B){if(taxable<=th)return Math.max(0,taxable*rate-d)*1.021;} return Math.max(0,taxable*.45-4796000)*1.021;
 }
 function auTax(aud) {
-  const B=[[18200,0],[45000,.19],[135000,.325],[190000,.37],[Infinity,.45]];
+  const B=[[18200,0],[45000,.16],[135000,.30],[190000,.37],[Infinity,.45]]; // FY2025-26 Stage 3 rates (PwC Tax Summaries)
   let t=0,prev=0; for(const[th,rate]of B){if(aud<=prev)break;const band=Math.min(aud,th===Infinity?aud:th)-prev;t+=band*rate;prev=th===Infinity?aud:th;if(prev>=aud)break;} return t;
 }
 
